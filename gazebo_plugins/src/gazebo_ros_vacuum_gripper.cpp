@@ -10,8 +10,8 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See the License for the specific language governing permissions and *
+[k limitations under the License.
  *
 */
 
@@ -34,7 +34,10 @@ GZ_REGISTER_MODEL_PLUGIN(GazeboRosVacuumGripper);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor
-GazeboRosVacuumGripper::GazeboRosVacuumGripper()
+GazeboRosVacuumGripper::GazeboRosVacuumGripper():
+    max_force_(20.0),
+    max_distance_(0.05),
+    min_distance_(0.008)
 {
   connect_count_ = 0;
   status_ = false;
@@ -66,7 +69,7 @@ void GazeboRosVacuumGripper::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf
 
   // Get the world name.
   world_ = _model->GetWorld();
-
+  
   // load parameters
   robot_namespace_ = "";
   if (_sdf->HasElement("robotNamespace"))
@@ -79,6 +82,23 @@ void GazeboRosVacuumGripper::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf
   }
   else
     link_name_ = _sdf->GetElement("bodyName")->Get<std::string>();
+
+  if (_sdf->HasElement("maxForce"))  {
+    max_force_ = _sdf->GetElement("maxForce")->Get<float>();
+  }
+
+  if (_sdf->HasElement("maxDistance"))  {
+    max_distance_ = _sdf->GetElement("maxDistance")->Get<float>();
+  }
+
+  if (_sdf->HasElement("minDistance"))  {
+    min_distance_ = _sdf->GetElement("minDistance")->Get<float>();
+  }
+
+  if (_sdf->HasElement("distanceForceCoefficient"))  {
+    distance_force_coefficient_ = _sdf->GetElement("distanceForceCoefficient")->Get<float>();
+  }
+
 
   link_ = _model->GetLink(link_name_);
   if (!link_)
@@ -149,6 +169,7 @@ bool GazeboRosVacuumGripper::OnServiceCallback(std_srvs::Empty::Request &req,
 {
   if (status_) {
     ROS_WARN_NAMED("vacuum_gripper", "gazebo_ros_vacuum_gripper: already status is 'on'");
+    ROS_WARN_NAMED("vacuum_gripper", "movge"); 
   } else {
     status_ = true;
     ROS_INFO_NAMED("vacuum_gripper", "gazebo_ros_vacuum_gripper: status: off -> on");
@@ -193,6 +214,7 @@ void GazeboRosVacuumGripper::UpdateChild()
       continue;
     }
     physics::Link_V links = models[i]->GetLinks();
+
     for (size_t j = 0; j < links.size(); j++) {
 #if GAZEBO_MAJOR_VERSION >= 8
       ignition::math::Pose3d link_pose = links[j]->WorldPose();
@@ -201,7 +223,7 @@ void GazeboRosVacuumGripper::UpdateChild()
 #endif
       ignition::math::Pose3d diff = parent_pose - link_pose;
       double norm = diff.Pos().Length();
-      if (norm < 0.05) {
+      if (norm < max_distance_) {
 #if GAZEBO_MAJOR_VERSION >= 8
         links[j]->SetLinearVel(link_->WorldLinearVel());
         links[j]->SetAngularVel(link_->WorldAngularVel());
@@ -209,15 +231,15 @@ void GazeboRosVacuumGripper::UpdateChild()
         links[j]->SetLinearVel(link_->GetWorldLinearVel());
         links[j]->SetAngularVel(link_->GetWorldAngularVel());
 #endif
-        double norm_force = 1 / norm;
-        if (norm < 0.01) {
+        double norm_force = distance_force_coefficient_/ norm;
+        if (norm < min_distance_) {
           // apply friction like force
           // TODO(unknown): should apply friction actually
           link_pose.Set(parent_pose.Pos(), link_pose.Rot());
           links[j]->SetWorldPose(link_pose);
         }
-        if (norm_force > 20) {
-          norm_force = 20;  // max_force
+        if (norm_force > max_force_) {
+          norm_force = max_force_;  // max_force
         }
         ignition::math::Vector3d force = norm_force * diff.Pos().Normalize();
         links[j]->AddForce(force);

@@ -95,7 +95,7 @@ namespace gazebo
 class GazeboRosVacuumGripper : public ModelPlugin
 {
   /// \brief Constructor
-  public: GazeboRosVacuumGripper();
+ public: GazeboRosVacuumGripper();
 
   /// \brief Destructor
   public: virtual ~GazeboRosVacuumGripper();
@@ -142,6 +142,12 @@ class GazeboRosVacuumGripper : public ModelPlugin
   /// \brief for setting ROS name space
   private: std::string robot_namespace_;
 
+
+  private:float max_force_;
+  private:float max_distance_;
+  private:float min_distance_;
+  private:float distance_force_coefficient_;
+
   // Custom Callback Queue
   private: ros::CallbackQueue queue_;
   /// \brief Thead object for the running callback Thread.
@@ -150,6 +156,9 @@ class GazeboRosVacuumGripper : public ModelPlugin
   // Pointer to the update event connection
   private: event::ConnectionPtr update_connection_;
 
+
+
+  
   /// \brief: keep track of number of connections
   private: int connect_count_;
   private: void Connect();
